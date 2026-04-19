@@ -1,0 +1,26 @@
+title: "每小时抓 IT之家 RSS"
+goal: "演示 HTTP fetch + 条件判断 + 成功时写入记忆"
+trigger_kind: cron
+trigger_spec: "0 * * * *"
+priority: 4
+tags: [demo, rss, ithome]
+plan:
+  - skill: http.get
+    args:
+      url: "https://www.ithome.com/rss/"
+      timeout: 15
+    store_as: rss
+    on_error: skip
+
+  - skill: mem.condition
+    args:
+      expr: "rss['status'] == 200 and len(rss['body']) > 1000"
+    store_as: ok
+
+  - skill: mem.write_note
+    if: "ok['result']"
+    args:
+      title: "IT 之家 RSS 抓取 {{rss.status}}"
+      content: "{{rss.body}}"
+      category: "rss"
+      tags: ["ithome", "auto"]

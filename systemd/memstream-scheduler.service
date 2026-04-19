@@ -1,0 +1,14 @@
+[Unit]
+Description=memstream scheduler — fires due tasks every 30s
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env memstream scheduler serve --interval 30
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/memstream/scheduler.log
+StandardError=append:/var/log/memstream/scheduler.log
+
+[Install]
+WantedBy=multi-user.target

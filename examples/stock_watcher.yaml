@@ -1,0 +1,24 @@
+title: "RKLB 股价阈值监控"
+goal: "每 10 分钟查股价，价低于 70 或 52 周新高触发 → 通知"
+trigger_kind: cron
+trigger_spec: "*/10 * * * *"
+priority: 2
+tags: [investment, RKLB]
+plan:
+  # NOTE: stock skill is shipped as an external plugin (see memstream docs);
+  # v0.1 core only includes http.get, so we approximate with an HTTP call.
+  - skill: http.get
+    args:
+      url: "https://query1.finance.yahoo.com/v8/finance/chart/RKLB?interval=1d&range=1d"
+    store_as: resp
+
+  - skill: mem.condition
+    args:
+      expr: "resp['status'] == 200"
+    store_as: got
+
+  - skill: notify
+    if: "got['result']"
+    args:
+      channel: "webhook:http://127.0.0.1:8900/api/message"
+      text: "📈 RKLB 盘中数据已抓取，原文字节数：{{resp.body}}"

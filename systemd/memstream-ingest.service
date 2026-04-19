@@ -1,0 +1,9 @@
+[Unit]
+Description=memstream ingest — import fresh Claude Code sessions to raw lake
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env memstream mem ingest --source claude_code
+StandardOutput=append:/var/log/memstream/ingest.log
+StandardError=append:/var/log/memstream/ingest.log

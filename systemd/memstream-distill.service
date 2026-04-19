@@ -1,0 +1,9 @@
+[Unit]
+Description=memstream distill — turn raw modules into indexed metadata
+After=network.target memstream-ingest.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env memstream mem distill --limit 20
+StandardOutput=append:/var/log/memstream/distill.log
+StandardError=append:/var/log/memstream/distill.log

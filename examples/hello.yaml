@@ -1,0 +1,11 @@
+title: "每天 9 点说早安"
+goal: "最简单的定时提醒，验证 memstream 调度器工作"
+trigger_kind: cron
+trigger_spec: "0 9 * * *"
+priority: 3
+tags: [demo, greeting]
+plan:
+  - skill: notify
+    args:
+      channel: stdout
+      text: "🌅 早安，今天是 {{rss.body}} — 写下 3 件要做的事"

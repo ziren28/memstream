@@ -1,0 +1,10 @@
+[Unit]
+Description=memstream fold — daily at 01:00 UTC
+Requires=memstream-fold.service
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

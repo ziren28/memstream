@@ -1,0 +1,12 @@
+[Unit]
+Description=memstream fold — daily/weekly/monthly memory compaction
+After=network.target memstream-distill.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'memstream mem fold daily; \
+  [ "$(date +%%u)" = "1" ] && memstream mem fold weekly; \
+  [ "$(date +%%d)" = "01" ] && memstream mem fold monthly; \
+  true'
+StandardOutput=append:/var/log/memstream/fold.log
+StandardError=append:/var/log/memstream/fold.log

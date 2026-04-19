@@ -1,0 +1,27 @@
+title: "夜间回顾：生成 brief 推送"
+goal: "23:00 UTC 汇总一天并推送（演示 mem 系列 skill 链）"
+trigger_kind: cron
+trigger_spec: "0 23 * * *"
+priority: 2
+tags: [demo, review]
+plan:
+  - skill: mem.search
+    args: {query: "今天", limit: 5}
+    store_as: today
+
+  - skill: mem.condition
+    args:
+      expr: "today['count'] > 0"
+    store_as: has_today
+
+  - skill: notify
+    if: "has_today['result']"
+    args:
+      channel: stdout
+      text: "📅 今天发生的前 5 件事：{{today.hits}}"
+
+  - skill: notify
+    if: "not has_today['result']"
+    args:
+      channel: stdout
+      text: "今天 memstream 没新模块，可能太闲了 😴"
