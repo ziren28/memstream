@@ -31,8 +31,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+yaml = ["pyyaml>=6"]
 s3 = ["boto3>=1.28"]
-dev = ["pytest>=7", "mypy>=1.0", "ruff>=0.1"]
+dev = ["pytest>=7", "pyyaml>=6", "mypy>=1.0", "ruff>=0.1"]
 
 [project.scripts]
 memstream = "memstream.cli:main"
