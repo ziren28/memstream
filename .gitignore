@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.log
+
+# memstream runtime state
+*.db
+*.db-*
+.memstream/
+.env
+.env.local
+
+# editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
