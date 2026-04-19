@@ -1,0 +1,113 @@
+title: "Curated digest v2 — 编号 + 反馈闭环 + 多样性"
+goal: |
+  升级版：
+  1. 每条资讯有唯一 ID (YYYYMMDD-NNN)，用户可打分 1-10
+  2. 历史打分作为 LLM 筛选权重输入（bandit-style feedback loop）
+  3. LLM 额外产出 2 条"低分/多样性"条目，防止过滤气泡
+trigger_kind: cron
+trigger_spec: "15 * * * *"
+priority: 2
+tags: [digest, curated, v2, feedback-loop]
+
+plan:
+  # ---- 1. 拉多源原始数据 ----
+  - skill: http.get
+    args: {url: "https://www.ithome.com/rss/", timeout: 15, max_bytes: 400000}
+    store_as: ithome
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/nodeseek", timeout: 10}
+    store_as: nodeseek
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/hostloc", timeout: 10}
+    store_as: hostloc
+    on_error: skip
+
+  # ---- 2. 历史打分 → LLM prompt ----
+  - skill: digest.history
+    args: {limit: 30, min_age_minutes: 10}
+    store_as: history
+
+  # ---- 3. LLM 评估：出 JSON 数组 ----
+  - skill: llm.complete
+    args:
+      timeout: 180
+      expect_list: true
+      prompt: |
+        你是 Max 的私人资讯管家。Max 的关注点：
+        1. AI / LLM / agent（Claude、Anthropic、Google、OpenAI）
+        2. 投资（AMZN, RKLB, ASTS, NVDA, NOK, TSLA, 中移动, 中概）
+        3. 太空经济（Starlink, Kuiper, SpaceX, Rocket Lab）
+        4. 基础设施 / DevTools / Linux / Cloud
+        5. 中国科技+监管
+        6. 真实开发者优惠（VPS, tools），非广告
+
+        忽略：娱乐八卦、纯论坛口水、celebrity、重复炒作、翻译类教程。
+
+        {{history.text}}
+
+        任务：
+        从下面原文抽出 **8 条高价值** + **2 条'多样性/低分'** 资讯。
+        多样性那 2 条请挑你认为不太匹配但可能开阔视野的（比如冷门硬核论文、
+        小语种开源项目、跨界趋势），**设置 diversity=true 和 llm_score 3-5**。
+
+        **严格返回 JSON 数组**（不要 markdown 代码块），每个元素格式：
+        ```
+        {
+          "title": "≤40 字",
+          "summary": "≤120 字评析，说明为什么值 X 分",
+          "url": "尽量从原文提取；没有就空串",
+          "source": "ithome|nodeseek|hostloc|other",
+          "tags": ["2-4 个关键词"],
+          "llm_score": 6,           // 1-10
+          "llm_reason": "简短打分理由",
+          "diversity": false        // true 仅 2 条
+        }
+        ```
+
+        原始资讯（截断）：
+
+        === ITHome ===
+        {{ithome.body}}
+
+        === NodeSeek ===
+        {{nodeseek.body}}
+
+        === HostLoc ===
+        {{hostloc.body}}
+    store_as: llm_out
+
+  # ---- 4. 分配 ID + 入库 ----
+  - skill: digest.assign_ids
+    args:
+      items: "{{llm_out.text}}"
+    store_as: assigned
+
+  # ---- 5. 门槛 ----
+  - skill: mem.condition
+    args:
+      expr: "assigned['stored'] >= 3"
+    store_as: gate
+
+  # ---- 6. 推 WX ----
+  - skill: notify
+    if: "gate['result']"
+    args:
+      channel: wx
+      text: |
+        📡 memstream digest · 批次 {{assigned.batch}}
+        共 {{assigned.stored}} 条（含 2 条多样性 🔍）
+
+        {{assigned.markdown}}
+
+  # ---- 7. 归档全文供后续搜索 ----
+  - skill: mem.write_note
+    if: "gate['result']"
+    args:
+      title: "digest {{assigned.batch}}"
+      content: "{{assigned.markdown}}"
+      category: "digest"
+      tags: ["curated", "v2"]

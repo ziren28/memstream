@@ -132,6 +132,28 @@ CREATE TABLE IF NOT EXISTS channels (
     enabled         INTEGER DEFAULT 1,
     created_at      REAL DEFAULT (strftime('%s','now'))
 );
+
+-- ========== Digest items + user feedback ==========
+
+CREATE TABLE IF NOT EXISTS digest_items (
+    id              TEXT PRIMARY KEY,     -- YYYYMMDD-NNN (date + zero-padded sequence)
+    created_at      REAL DEFAULT (strftime('%s','now')),
+    source          TEXT,                 -- 'ithome' / 'hn' / 'nodeseek' / ...
+    original_url    TEXT,
+    title           TEXT,
+    summary         TEXT,                 -- LLM's commentary
+    tags            TEXT,
+    llm_score       INTEGER,              -- 1-10, LLM's judgment of value
+    llm_reason      TEXT,                 -- why LLM scored this way
+    diversity       INTEGER DEFAULT 0,    -- 1 = included as 'low-value counterweight'
+    user_score      INTEGER,              -- 1-10, filled when user scores
+    user_score_at   REAL,
+    user_note       TEXT,                 -- optional user annotation
+    digest_batch    TEXT                  -- timestamp key grouping a digest run
+);
+CREATE INDEX IF NOT EXISTS idx_digest_items_created ON digest_items(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_digest_items_batch   ON digest_items(digest_batch);
+CREATE INDEX IF NOT EXISTS idx_digest_items_user    ON digest_items(user_score);
 """
 
 
