@@ -152,8 +152,15 @@ class MemConditionSkill(Skill):
         expr = kwargs["expr"]
         ctx = kwargs.get("context") or {}
         try:
-            # Very restricted eval — allow only safe names from context.
-            safe = {"__builtins__": {}}
+            # Restricted eval — expose ctx + a whitelist of safe builtins only.
+            safe_builtins = {
+                "len": len, "abs": abs, "min": min, "max": max,
+                "sum": sum, "any": any, "all": all, "bool": bool,
+                "int": int, "float": float, "str": str, "list": list,
+                "set": set, "dict": dict, "tuple": tuple,
+                "round": round, "sorted": sorted,
+            }
+            safe = {"__builtins__": safe_builtins}
             safe.update(ctx)
             value = bool(eval(expr, safe, {}))  # noqa: S307 (restricted globals)
             return SkillResult(ok=True, output={"result": value})
