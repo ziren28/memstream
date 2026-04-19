@@ -54,7 +54,7 @@ def sync_to_db() -> None:
 def register_builtins() -> None:
     """Register all skills that ship with memstream v0.1."""
     # Local imports to keep the registry module lightweight.
-    from . import notify, http, mem, shell, file
+    from . import notify, http, mem, shell, file, llm_skill
     register(notify.NotifySkill())
     register(http.HttpGetSkill())
     register(http.HttpPostSkill())
@@ -64,3 +64,4 @@ def register_builtins() -> None:
     register(shell.ShellRunSkill())
     register(file.FileReadSkill())
     register(file.FileWriteSkill())
+    register(llm_skill.LlmCompleteSkill())

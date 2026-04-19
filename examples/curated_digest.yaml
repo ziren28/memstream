@@ -1,0 +1,85 @@
+title: "Curated daily digest — 资讯 → LLM 筛选 → 聚合"
+goal: "最佳实践演示：多源聚合 → LLM 按用户画像打分 + 精选 → WX 推送"
+trigger_kind: cron
+trigger_spec: "15 * * * *"        # 每小时 15 分
+priority: 2
+tags: [digest, curated, best-practice]
+
+plan:
+  # --- 1. Fetch raw feeds from multiple sources (System 1) ---
+  - skill: http.get
+    args:
+      url: "https://www.ithome.com/rss/"
+      timeout: 15
+      max_bytes: 500000
+    store_as: ithome
+    on_error: skip
+
+  - skill: http.get
+    args:
+      url: "https://hacker-news.firebaseio.com/v0/topstories.json"
+    store_as: hn_top
+    on_error: skip
+
+  - skill: http.get
+    args:
+      url: "https://127.0.0.1:6688/nodeseek"
+    store_as: nodeseek
+    on_error: skip
+
+  # --- 2. LLM evaluation (System 2): filter + score + synthesize ---
+  - skill: llm.complete
+    args:
+      timeout: 180
+      expect_json: false
+      prompt: |
+        你是 Max 的私人资讯管家。Max 的关注点按优先级：
+        1. AI / LLM / agent 生态（Claude、Anthropic、OpenAI、Google Gemini）
+        2. 投资标的（AMZN, RKLB, ASTS, NVDA, NOK, TSLA, 中移动, 中概股）
+        3. 太空经济（Starlink, Kuiper, SpaceX, 6G, 卫星互联网）
+        4. 基础设施 / 开发者工具（Linux, Cloud, LLM infrastructure）
+        5. 中国科技+监管动向
+        6. 真实羊毛（VPS、开发者工具优惠，非纯广告）
+
+        请忽略：娱乐八卦、纯论坛口水、广告、Celebrity、重复炒作。
+
+        现在从下面三个源的原文里抽出对 Max 最有价值的 **最多 10 条**，每条格式：
+          • **[一级分类]** 简短标题（≤30 字）
+            💬 一句话评析：为什么对 Max 有价值 / 下一步该关注什么
+            🔗 原文链接（如果能从原文里提取到）
+
+        如果某个源完全没价值，跳过不提。如果 10 条都达不到，宁可少不要凑数。
+        最后加一行 `📊 本轮共筛选 N 条 / 原始 M 条`。
+
+        资讯原文：
+
+        === IT 之家 RSS ===
+        {{ithome.body}}
+
+        === HackerNews top stories (IDs only, 作为背景引用) ===
+        {{hn_top.body}}
+
+        === NodeSeek 最新 ===
+        {{nodeseek.body}}
+    store_as: curated
+
+  # --- 3. Only push if LLM produced something substantial ---
+  - skill: mem.condition
+    args:
+      expr: "len(curated['text']) > 200"
+    store_as: worth_pushing
+
+  - skill: notify
+    if: "worth_pushing['result']"
+    args:
+      channel: wx
+      text: "📡 memstream curated digest\n\n{{curated.text}}"
+
+  # --- 4. Archive to memory so we can search it later ---
+  - skill: mem.write_note
+    if: "worth_pushing['result']"
+    args:
+      title: "curated digest {{curated.text}}"
+      content: "{{curated.text}}"
+      category: "digest"
+      tags: ["curated", "auto"]
