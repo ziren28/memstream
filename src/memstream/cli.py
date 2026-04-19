@@ -241,6 +241,27 @@ def cmd_mem_brief(args) -> int:
     return 0
 
 
+def cmd_parse(args) -> int:
+    """Run the fallback command parser on a single line."""
+    from .llm.parser import parse
+    reply = parse(args.line)
+    if reply is None:
+        print("(not a command; starts with '/' to use fallback parser)")
+        return 1
+    print(reply)
+    return 0
+
+
+def cmd_hook_install(args) -> int:
+    from .hook import install, settings_snippet
+    p = install(args.dir)
+    print(f"✅ hook script written: {p}")
+    print("\nAdd this to your Claude Code ~/.claude/settings.json:")
+    import json as _json
+    print(_json.dumps(settings_snippet(p), ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_mem_note(args) -> int:
     skills_registry.register_builtins()
     s = skills_registry.get("mem.write_note")
@@ -297,6 +318,15 @@ def build_parser() -> argparse.ArgumentParser:
     pn.add_argument("--title", required=True); pn.add_argument("--content", required=True)
     pn.add_argument("--category"); pn.add_argument("--tag", action="append")
 
+    # parse (fallback parser entry)
+    pp = sub.add_parser("parse", help="run fallback command parser on a single line")
+    pp.add_argument("line")
+
+    # hook
+    p_hook = sub.add_parser("hook")
+    hs = p_hook.add_subparsers(dest="sub", required=True)
+    hi = hs.add_parser("install"); hi.add_argument("--dir")
+
     return ap
 
 
@@ -317,6 +347,8 @@ HANDLERS = {
     ("mem", "fold"):       cmd_mem_fold,
     ("mem", "brief"):      cmd_mem_brief,
     ("mem", "note"):       cmd_mem_note,
+    ("parse", None):       cmd_parse,
+    ("hook", "install"):   cmd_hook_install,
 }
 
 

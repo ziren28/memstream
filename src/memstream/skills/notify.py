@@ -55,8 +55,18 @@ class NotifySkill(Skill):
             except Exception as e:
                 return SkillResult(ok=False, output={"sent": False, "channel": channel}, error=str(e))
 
-        # Registered channels: look up adapter (stub for v0.1 — not yet hooked)
+        # Registered named channels (e.g. 'wx:owner', 'tg:main')
+        if channel.startswith("wx"):
+            from ..channels.wx import WxChannel
+            _, _, user = channel.partition(":")
+            try:
+                ok = WxChannel().send(user, text)
+                return SkillResult(ok=ok, output={"sent": ok, "channel": channel, "bytes": len(text)})
+            except Exception as e:
+                return SkillResult(ok=False, output={"sent": False, "channel": channel}, error=str(e))
+
         return SkillResult(
             ok=False, output={"sent": False, "channel": channel},
-            error=f"unknown channel '{channel}' (v0.1 supports 'stdout' and 'webhook:<url>')",
+            error=f"unknown channel '{channel}' "
+                  f"(v0.1 supports 'stdout', 'webhook:<url>', 'wx[:user_id]')",
         )
