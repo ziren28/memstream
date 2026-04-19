@@ -1,0 +1,226 @@
+title: "Curated digest v3 — 多源平衡 + 反馈闭环 + 多样性"
+goal: |
+  基于 v2 的反馈：ithome 独大，改成 N 源配额制，每源最多贡献 2-3 条，
+  总量上限 20 条（含 3 条多样性）。
+  来源覆盖：中文资讯/社区/开发者/投资/英文科技/推特。
+trigger_kind: cron
+trigger_spec: "15 * * * *"
+priority: 2
+tags: [digest, curated, v3]
+
+plan:
+  # ═════ 1. 并行拉取多源（15 路）═════
+
+  # 资讯/科技
+  - skill: http.get
+    args: {url: "https://www.ithome.com/rss/", timeout: 10, max_bytes: 200000}
+    store_as: ithome
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "https://sspai.com/feed", timeout: 10, max_bytes: 100000}
+    store_as: sspai
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/huxiu", timeout: 10}
+    store_as: huxiu
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/36kr", timeout: 10}
+    store_as: kr36
+    on_error: skip
+
+  # 社区/开发者
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/linuxdo", timeout: 10}
+    store_as: linuxdo
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/nodeseek", timeout: 10}
+    store_as: nodeseek
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/hostloc", timeout: 10}
+    store_as: hostloc
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/v2ex", timeout: 10}
+    store_as: v2ex
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/juejin", timeout: 10}
+    store_as: juejin
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/hellogithub", timeout: 10}
+    store_as: hellogithub
+    on_error: skip
+
+  # 大众热榜
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/weibo", timeout: 10}
+    store_as: weibo
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "http://127.0.0.1:6688/zhihu", timeout: 10}
+    store_as: zhihu
+    on_error: skip
+
+  # 英文科技
+  - skill: http.get
+    args: {url: "https://hacker-news.firebaseio.com/v0/topstories.json", timeout: 10}
+    store_as: hn
+
+  # 推特（Max 关注）
+  - skill: http.get
+    args: {url: "https://xcancel.com/elonmusk", timeout: 12, max_bytes: 200000}
+    store_as: musk
+    on_error: skip
+
+  - skill: http.get
+    args: {url: "https://trumpstruth.org/feed", timeout: 10, max_bytes: 100000}
+    store_as: trump
+    on_error: skip
+
+  # ═════ 2. 历史反馈 ═════
+  - skill: digest.history
+    args: {limit: 40, min_age_minutes: 10}
+    store_as: history
+
+  # ═════ 3. LLM 平衡筛选 ═════
+  - skill: llm.complete
+    args:
+      timeout: 240
+      expect_list: true
+      prompt: |
+        你是 Max 的私人资讯管家。Max 的关注点（按优先级）：
+        1. AI / LLM / Agent 生态（Claude、Anthropic、OpenAI、Google、Meta AI）
+        2. 投资标的（AMZN, RKLB, ASTS, NVDA, NOK, TSLA, 中移动, 中概股）
+        3. 太空经济（Starlink, Kuiper, SpaceX, Rocket Lab, 卫星）
+        4. 基础设施 / DevTools / Linux / Cloud
+        5. 中国科技+监管
+        6. 真实开发者优惠（VPS、tools），非广告
+
+        忽略：娱乐八卦、纯论坛口水、celebrity 绯闻、重复炒作、翻译教程。
+
+        {{history.text}}
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━
+        🎯 **任务目标**：总数 **最多 20 条**（含 **3 条多样性 🔍**）
+        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        **来源配额**（每源最多贡献，严格遵守，避免 ITHome 独大）：
+        - ITHome: 最多 3 条
+        - 少数派 / 虎嗅 / 36Kr / HelloGitHub: 各最多 2 条
+        - LinuxDO / NodeSeek / HostLoc / V2EX / 掘金: 各最多 2 条
+        - 微博 / 知乎: 各最多 2 条
+        - HackerNews: 最多 2 条
+        - Musk 推特 / Trump TruthSocial: 各最多 2 条
+        - 多样性 🔍（你自己认为冷门但开阔视野的）: 3 条，llm_score 3-5
+
+        **平衡原则**：
+        - 如果某源今日没有达到价值阈值的内容，可以少于配额
+        - 不要凑数；宁可少不要重复
+        - 多样性要真的"多样"（冷门硬核、跨界、非热门领域），不要当凑数
+
+        **严格返回 JSON 数组**，每个元素：
+        ```
+        {
+          "title": "≤40 字，可附一个 emoji 分类标",
+          "summary": "≤120 字一句话评析：为什么对 Max 值这个分",
+          "url": "从原文提取；没有就空串",
+          "source": "ithome|sspai|huxiu|36kr|linuxdo|nodeseek|hostloc|v2ex|juejin|hellogithub|weibo|zhihu|hackernews|musk|trump|other",
+          "tags": ["2-4 个关键词"],
+          "llm_score": 6,
+          "llm_reason": "简短打分理由",
+          "diversity": false
+        }
+        ```
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        === ITHome ===
+        {{ithome.body}}
+
+        === 少数派 ===
+        {{sspai.body}}
+
+        === 虎嗅 ===
+        {{huxiu.body}}
+
+        === 36Kr ===
+        {{kr36.body}}
+
+        === LinuxDO ===
+        {{linuxdo.body}}
+
+        === NodeSeek ===
+        {{nodeseek.body}}
+
+        === HostLoc ===
+        {{hostloc.body}}
+
+        === V2EX ===
+        {{v2ex.body}}
+
+        === 掘金 ===
+        {{juejin.body}}
+
+        === HelloGitHub ===
+        {{hellogithub.body}}
+
+        === 微博热搜 ===
+        {{weibo.body}}
+
+        === 知乎热榜 ===
+        {{zhihu.body}}
+
+        === HackerNews Top IDs（如果需要进一步查请返回 url 让 fetch_deep 跟进）===
+        {{hn.body}}
+
+        === Musk 推特 ===
+        {{musk.body}}
+
+        === Trump TruthSocial ===
+        {{trump.body}}
+    store_as: llm_out
+
+  # ═════ 4. 分配 ID + 入库 ═════
+  - skill: digest.assign_ids
+    args:
+      items: "{{llm_out.text}}"
+    store_as: assigned
+
+  # ═════ 5. 门槛（至少 5 条才推）═════
+  - skill: mem.condition
+    args:
+      expr: "assigned['stored'] >= 5"
+    store_as: gate
+
+  # ═════ 6. 推送 ═════
+  - skill: notify
+    if: "gate['result']"
+    args:
+      channel: wx
+      text: |
+        📡 memstream digest v3 · 批次 {{assigned.batch}}
+        共 {{assigned.stored}} 条（LLM 按来源配额平衡 / 含多样性🔍）
+
+        {{assigned.markdown}}
+
+  # ═════ 7. 归档 ═════
+  - skill: mem.write_note
+    if: "gate['result']"
+    args:
+      title: "digest {{assigned.batch}}"
+      content: "{{assigned.markdown}}"
+      category: "digest"
+      tags: ["curated", "v3"]
